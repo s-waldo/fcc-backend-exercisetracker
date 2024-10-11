@@ -43,11 +43,15 @@ const fetchUser = async (req, res, next) => {
 
 // log exercise to user
 app.post("/api/users/:id/exercises", fetchUser, async (req, res) => {
+  let date = new Date();
+  if (req.body.date != null) {
+    date = new Date(req.body.date)
+  }
   const exercise = new Exercise({
     userId: req.params.id,
     description: req.body.description,
     duration: Number(req.body.duration),
-    date: new Date(req.body.date).toDateString(),
+    date: date,
   });
   await exercise.save();
   res.json({
@@ -61,25 +65,41 @@ app.post("/api/users/:id/exercises", fetchUser, async (req, res) => {
 
 // get all exercise logs that belong to a user
 app.get("/api/users/:id/logs", fetchUser, async (req, res) => {
-  const logs = await Exercise.find(
+  const query = Exercise.find(
     { userId: res.locals.user._id },
     "-_id description duration date"
   );
-  const newLogs = logs.map(log => {
-    return {
-      description: log.description,
-      duration: log.duration,
-      date: log.date.toDateString()
-    }
-    
-  })
-  const count = logs.length;
-  res.json({
-    username: res.locals.user.username,
-    count: count,
-    _id: res.locals.user._id,
-    log: newLogs,
-  });
+
+  if (req.query.limit) {
+    query.limit(parseInt(req.query.limit))
+  }
+  if (req.query.from) {
+    query.where('date').gte(new Date(req.query.from))
+  }
+  if (req.query.to) {
+    query.where('date').lte(new Date(req.query.to))
+  }
+  try {
+    const logs = await query.exec();
+    const newLogs = logs.map(log => {
+      return {
+        description: log.description,
+        duration: log.duration,
+        date: log.date.toDateString()
+      }
+    })
+    const count = logs.length;
+  
+    res.json({
+      username: res.locals.user.username,
+      count: count,
+      _id: res.locals.user._id,
+      log: newLogs,
+    });
+  } catch (error) {
+    console.error(error)
+  }
+
 });
 
 // port setup
